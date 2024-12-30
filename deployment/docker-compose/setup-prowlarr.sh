@@ -17,13 +17,13 @@ echo "PROWLARR_API_KEY=$PROWLARR_API_KEY" >> .env
 docker-compose rm -sf prowlarr
 
 # delete the volume if it exists
-docker volume rm -f docker-compose_prowlarr-config
+docker volume rm -f mediafusion_prowlarr-config
 
 # Ensure the volume is available
-docker volume create docker-compose_prowlarr-config
+docker volume create mediafusion_prowlarr-config
 
 # Copy the configuration file to the volume
-docker run --rm -v "$REPO_ROOT/resources/xml/prowlarr-config.xml:/prowlarr-config/config.xml" -v docker-compose_prowlarr-config:/config alpine /bin/sh -c "
+docker run --rm -v "$REPO_ROOT/resources/xml/prowlarr-config.xml:/prowlarr-config/config.xml" -v mediafusion_prowlarr-config:/config alpine /bin/sh -c "
   cp /prowlarr-config/config.xml /config/config.xml;
   sed -i 's/\$PROWLARR_API_KEY/'"$PROWLARR_API_KEY"'/g' /config/config.xml;
   sed -i 's/\$PROWLARR__POSTGRES_USER/'"$PROWLARR__POSTGRES_USER"'/g' /config/config.xml;
@@ -37,10 +37,10 @@ docker run --rm -v "$REPO_ROOT/resources/xml/prowlarr-config.xml:/prowlarr-confi
 "
 
 # pull the latest images
-docker-compose pull prowlarr flaresolverr
+docker-compose -p mediafusion pull prowlarr flaresolverr
 
 # Start Prowlarr and FlareSolverr containers
-docker-compose up -d prowlarr flaresolverr
+docker-compose -p mediafusion up -d prowlarr flaresolverr
 
 # Function to handle curl requests
 handle_curl() {
