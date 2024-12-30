@@ -150,6 +150,7 @@ services:
     volumes:
       - /etc/config/qbittorrent/htpasswd:/etc/apache2/.htpasswd # Optional: For WebDAV password protection
       - /etc/storage/qbittorrent:/downloads
+      - qbittorrent-config:/config
 
 volumes:
   mongo-data:
@@ -157,6 +158,8 @@ volumes:
   prowlarr-config:
     driver: local
   redis-data:
+    driver: local
+  qbittorrent-config:
     driver: local
 
 networks:
