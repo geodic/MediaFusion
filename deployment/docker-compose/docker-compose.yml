@@ -127,6 +127,30 @@ services:
     networks:
       - mediafusion-network
 
+  gluetun:
+    image: qmcgaw/gluetun
+    container_name: gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      - VPN_SERVICE_PROVIDER=protonvpn
+      - VPN_TYPE=wireguard
+      - WIREGUARD_PRIVATE_KEY=kLxXbrnQN5ut5Qu+WamoBrt80LEYyrYQw7gkg3kqHW4=
+      - FREE_ONLY=on
+    networks:
+      - mediafusion-network
+
+  qbittorrent:
+    image: mhdzumair/qbittorrent-webdav:latest
+    container_name: qbittorrent
+    restart: unless-stopped
+    network_mode: "service:gluetun"
+    volumes:
+      - /etc/config/qbittorrent/htpasswd:/etc/apache2/.htpasswd # Optional: For WebDAV password protection
+      - /etc/storage/qbittorrent:/downloads
+
 volumes:
   mongo-data:
     driver: local
