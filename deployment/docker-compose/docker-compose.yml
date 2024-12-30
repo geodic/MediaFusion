@@ -16,8 +16,7 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
-    networks:
-      - mediafusion-network
+    network_mode: "container:gluetun"
 
   nginx:
     image: nginx:alpine
@@ -26,7 +25,7 @@ services:
       - ./mediafusion.local.pem:/etc/ssl/certs/mediafusion.local.pem:ro
       - ./mediafusion.local-key.pem:/etc/ssl/private/mediafusion.local-key.pem:ro
     ports:
-      - "443:443"
+      - "444:443"
     depends_on:
       mediafusion:
         condition: service_healthy
@@ -36,8 +35,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - mediafusion-network
+    network_mode: "container:gluetun"
 
   mongodb:
     image: mongo:latest
@@ -52,8 +50,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 40s
-    networks:
-      - mediafusion-network
+    network_mode: "container:gluetun"
 
   redis:
     image: redis:latest
@@ -68,8 +65,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - mediafusion-network
+    network_mode: "container:gluetun"
 
   dramatiq-worker:
     image: mhdzumair/mediafusion:4.2.1
@@ -81,8 +77,7 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    networks:
-      - mediafusion-network
+    network_mode: "container:gluetun"
 
   prowlarr:
     image: ghcr.io/hotio/prowlarr:latest
@@ -96,8 +91,7 @@ services:
     volumes:
       - prowlarr-config:/config
     restart: unless-stopped
-    networks:
-      - mediafusion-network
+    network_mode: "container:gluetun"
 
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
@@ -109,8 +103,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - mediafusion-network
+    network_mode: "container:gluetun"
 
   browserless:
     image: ghcr.io/browserless/chromium
@@ -124,8 +117,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - mediafusion-network
+    network_mode: "container:gluetun"
 
 volumes:
   mongo-data:
@@ -134,7 +126,3 @@ volumes:
     driver: local
   redis-data:
     driver: local
-
-networks:
-  mediafusion-network:
-    driver: bridge
