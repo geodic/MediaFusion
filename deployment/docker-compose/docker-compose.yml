@@ -1,6 +1,8 @@
 services:
   mediafusion:
     image: mhdzumair/mediafusion:4.2.1
+    ports:
+      - "8000:8000"
     env_file: .env
     depends_on:
       mongodb:
@@ -14,7 +16,8 @@ services:
       retries: 5
       start_period: 10s
     restart: unless-stopped
-    network_mode: "container:gluetun"
+    networks:
+      - mediafusion-network
 
   nginx:
     image: nginx:alpine
@@ -22,6 +25,8 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./mediafusion.local.pem:/etc/ssl/certs/mediafusion.local.pem:ro
       - ./mediafusion.local-key.pem:/etc/ssl/private/mediafusion.local-key.pem:ro
+    ports:
+      - "443:443"
     depends_on:
       mediafusion:
         condition: service_healthy
@@ -31,12 +36,15 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    network_mode: "container:gluetun"
+    networks:
+      - mediafusion-network
 
   mongodb:
     image: mongo:latest
     volumes:
       - mongo-data:/data/db
+    ports:
+      - "27017:27017"
     restart: unless-stopped
     healthcheck:
       test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
@@ -44,10 +52,13 @@ services:
       timeout: 10s
       retries: 5
       start_period: 40s
-    network_mode: "container:gluetun"
+    networks:
+      - mediafusion-network
 
   redis:
     image: redis:latest
+    ports:
+      - "6379:6379"
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes --save 60 1
@@ -57,7 +68,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    network_mode: "container:gluetun"
+    networks:
+      - mediafusion-network
 
   dramatiq-worker:
     image: mhdzumair/mediafusion:4.2.1
@@ -69,7 +81,8 @@ services:
       redis:
         condition: service_healthy
     restart: unless-stopped
-    network_mode: "container:gluetun"
+    networks:
+      - mediafusion-network
 
   prowlarr:
     image: ghcr.io/hotio/prowlarr:latest
@@ -78,23 +91,31 @@ services:
       - PGID=1000
       - UMASK=002
       - TZ=${TZ:-UTC}  # Add timezone support
+    ports:
+      - "9696:9696"
     volumes:
       - prowlarr-config:/config
     restart: unless-stopped
-    network_mode: "container:gluetun"
+    networks:
+      - mediafusion-network
 
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
+    ports:
+      - "8191:8191"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8191/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-    network_mode: "container:gluetun"
+    networks:
+      - mediafusion-network
 
   browserless:
     image: ghcr.io/browserless/chromium
+    ports:
+      - "3000:3000"
     environment:
       - TIMEOUT=-1
     restart: unless-stopped
@@ -103,7 +124,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    network_mode: "container:gluetun"
+    networks:
+      - mediafusion-network
 
 volumes:
   mongo-data:
@@ -112,3 +134,7 @@ volumes:
     driver: local
   redis-data:
     driver: local
+
+networks:
+  mediafusion-network:
+    driver: bridge
