@@ -129,7 +129,6 @@ services:
 
   gluetun:
     image: qmcgaw/gluetun
-    container_name: gluetun
     cap_add:
       - NET_ADMIN
     devices:
@@ -144,7 +143,6 @@ services:
 
   qbittorrent:
     image: mhdzumair/qbittorrent-webdav:latest
-    container_name: qbittorrent
     restart: unless-stopped
     network_mode: "service:gluetun"
     volumes:
