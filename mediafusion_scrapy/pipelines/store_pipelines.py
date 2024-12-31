@@ -9,7 +9,6 @@ from db import crud
 from db.crud import organize_episodes
 from db.models import (
     TorrentStreams,
-    Season,
     MediaFusionSeriesMetaData,
 )
 from db.redis_database import REDIS_ASYNC_CLIENT
@@ -100,10 +99,12 @@ class EventSeriesStorePipeline(QueueBasedPipeline):
                 codec=item.get("codec"),
                 quality=item.get("quality"),
                 audio=item.get("audio"),
+                hdr=item.get("hdr"),
                 source=item["source"],
+                uploader=item.get("uploader"),
                 catalog=item["catalog"],
                 created_at=item["created_at"],
-                season=Season(season_number=1, episodes=item["episodes"]),
+                episode_files=item.get("episodes"),
                 seeders=item["seeders"],
             )
             await torrent_stream.insert()

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     is_public_instance: bool = False
     poster_host_url: str | None = None
     min_scraping_video_size: int = 26214400  # 25 MB in bytes
+    metadata_primary_source: Literal["imdb", "tmdb"] = "imdb"
 
     # Streaming Provider Toggles
     disabled_providers: list[
@@ -76,6 +77,7 @@ class Settings(BaseSettings):
     is_scrap_from_mediafusion: bool = False
     mediafusion_search_interval_days: int = 3
     mediafusion_url: str = "https://mediafusion.elfhosted.com"
+    sync_debrid_cache_streams: bool = True
 
     # Zilean Settings
     is_scrap_from_zilean: bool = False
@@ -109,6 +111,10 @@ class Settings(BaseSettings):
     premiumize_oauth_client_id: str | None = None
     premiumize_oauth_client_secret: str | None = None
 
+    # Telegram Settings
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+
     # Configuration Sources
     remote_config_source: str = (
         "https://raw.githubusercontent.com/mhdzumair/MediaFusion/main/resources/json/scraper_config.json"
@@ -120,6 +126,7 @@ class Settings(BaseSettings):
     validate_m3u8_urls_liveness: bool = True
     store_stremthru_magnet_cache: bool = False
     is_scrap_from_yts: bool = True
+    scrape_with_aka_titles: bool = True
 
     # Content Filtering
     adult_content_regex_keywords: str = (

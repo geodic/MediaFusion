@@ -29,11 +29,11 @@ async def create_download_link(
     selected_file_index = await select_file_index_from_torrent(
         torrent_info,
         filename,
+        season,
         episode,
         "files",
         "path",
         "bytes",
-        True,
     )
 
     if filename is None or file_index is None:
@@ -46,7 +46,6 @@ async def create_download_link(
             file_key="files",
             name_key="path",
             size_key="bytes",
-            remove_leading_slash=True,
             is_index_trustable=True,
         )
 
@@ -74,8 +73,8 @@ async def create_download_link(
 
     response = await rd_client.create_download_link(torrent_info["links"][link_index])
 
-    if not response.get("mimeType").startswith("video"):
-        await rd_client.delete_torrent(torrent_info["id"])
+    if not response.get("mimeType", "").startswith("video"):
+        # await rd_client.delete_torrent(torrent_info["id"])
         raise ProviderException(
             f"Requested file is not a video file, deleting torrent and retrying. {response['mimeType']}",
             "torrent_not_downloaded.mp4",

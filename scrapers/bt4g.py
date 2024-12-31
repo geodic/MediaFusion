@@ -9,7 +9,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from db.config import settings
-from db.models import TorrentStreams, Season, Episode, MediaFusionMetaData
+from db.models import TorrentStreams, EpisodeFile, MediaFusionMetaData
 from scrapers.base_scraper import BaseScraper
 from utils.network import CircuitBreaker, batch_process_with_circuit_breaker
 from utils.parser import convert_size_to_bytes, is_contain_18_plus_keywords
@@ -67,6 +67,16 @@ class BT4GScraper(BaseScraper):
                         catalog_type,
                     )
                 )
+            if settings.scrape_with_aka_titles:
+                for aka_title in metadata.aka_titles:
+                    search_generators.append(
+                        self.scrape_by_query(
+                            processed_unique_data,
+                            metadata,
+                            aka_title,
+                            catalog_type,
+                        )
+                    )
         else:  # series
             for query_template in self.SERIES_SEARCH_QUERY_TEMPLATES:
                 search_query = query_template.format(
@@ -84,6 +94,18 @@ class BT4GScraper(BaseScraper):
                         episode=episode,
                     )
                 )
+            if settings.scrape_with_aka_titles:
+                for aka_title in metadata.aka_titles:
+                    search_generators.append(
+                        self.scrape_by_query(
+                            processed_unique_data,
+                            metadata,
+                            aka_title,
+                            catalog_type,
+                            season=season,
+                            episode=episode,
+                        )
+                    )
 
         try:
             async for stream in self.process_streams(
@@ -356,15 +378,37 @@ class BT4GScraper(BaseScraper):
                 ):
                     continue
                 file_parsed_data = PTT.parse_title(file_name)
-                seasons.update(parsed_data.get("seasons", []))
-                episodes.update(parsed_data.get("episodes", []))
+                seasons.update(file_parsed_data.get("seasons", []))
+                episodes.update(file_parsed_data.get("episodes", []))
+                season_number = (
+                    file_parsed_data.get("seasons")[0]
+                    if file_parsed_data.get("seasons")
+                    else None
+                )
+                if (
+                    season_number is None
+                    and parsed_data.get("seasons")
+                    and len(parsed_data["seasons"]) == 1
+                ):
+                    season_number = parsed_data["seasons"][0]
+                episode_number = (
+                    file_parsed_data.get("episodes")[0]
+                    if file_parsed_data.get("episodes")
+                    else None
+                )
+                if (
+                    episode_number is None
+                    and parsed_data.get("episodes")
+                    and len(parsed_data["episodes"]) == 1
+                ):
+                    episode_number = parsed_data["episodes"][0]
                 file_info.append(
                     {
                         "filename": file_name,
                         "file_size": file_size,
                         "index": index,
-                        "seasons": file_parsed_data.get("seasons"),
-                        "episodes": file_parsed_data.get("episodes"),
+                        "season_number": season_number,
+                        "episode_number": episode_number,
                     }
                 )
 
@@ -386,6 +430,7 @@ class BT4GScraper(BaseScraper):
                 codec=parsed_data.get("codec"),
                 quality=parsed_data.get("quality"),
                 audio=parsed_data.get("audio"),
+                hdr=parsed_data.get("hdr"),
                 source="BT4G",
                 catalog=["bt4g_streams"],
                 seeders=seeders,
@@ -397,9 +442,17 @@ class BT4GScraper(BaseScraper):
                     parsed_data["seasons"] = list(seasons)
                 if not parsed_data["episodes"]:
                     parsed_data["episodes"] = list(episodes)
-                if not self._process_series_data(
-                    stream, parsed_data, file_info, season, episode
+                if not self._process_series_data(stream, parsed_data, file_info):
+                    return None
+            else:
+                # For the Movies, should not have seasons and episodes
+                if (
+                    parsed_data.get("seasons")
+                    or parsed_data.get("episodes")
+                    or seasons
+                    or episodes
                 ):
+                    self.metrics.record_skip("Unexpected season/episode info")
                     return None
 
             self.metrics.record_processed_item()
@@ -410,7 +463,7 @@ class BT4GScraper(BaseScraper):
 
         except Exception as e:
             self.metrics.record_error("result_processing_error")
-            self.logger.error(f"Error processing search result: {e}")
+            self.logger.exception(f"Error processing search result: {e}")
             return None
 
     def _process_series_data(
@@ -418,41 +471,29 @@ class BT4GScraper(BaseScraper):
         stream: TorrentStreams,
         parsed_data: dict,
         file_info: List[dict],
-        season: int,
-        episode: int,
     ) -> bool:
         """Process series-specific data and validate season/episode information"""
         if not parsed_data.get("seasons"):
             self.metrics.record_skip("Missing season info")
             return False
 
-        if len(parsed_data["seasons"]) != 1:
-            self.metrics.record_skip("Multiple seasons")
-            return False
-
-        season_number = parsed_data["seasons"][0]
-        if season_number != season:
-            self.metrics.record_skip("Season mismatch")
-            return False
-
         # Prepare episode data based on detailed file data
         episode_data = [
-            Episode(
-                episode_number=file["episodes"][0],
+            EpisodeFile(
+                season_number=file.get("season_number"),
+                episode_number=file.get("episode_number"),
                 filename=file.get("filename"),
                 size=file.get("file_size"),
                 file_index=file.get("index"),
             )
             for file in file_info
-            if file.get("episodes")
+            if file.get("season_number") is not None
+            and file.get("episode_number") is not None
         ]
 
         if not episode_data:
             self.metrics.record_skip("No valid episodes")
             return False
 
-        stream.season = Season(
-            season_number=season_number,
-            episodes=episode_data,
-        )
+        stream.episode_files = episode_data
         return True

@@ -18,9 +18,10 @@ class Catalog(BaseModel):
 class Video(BaseModel):
     id: str
     title: str
-    released: str
+    released: str | None = None
     season: int | None = None
     episode: int | None = None
+    thumbnail: str | None = None
 
 
 class Meta(BaseModel):
@@ -39,6 +40,7 @@ class Meta(BaseModel):
     website: str | None = None
     imdbRating: str | float | None = Field(None, alias="imdb_rating")
     releaseInfo: str | int | None = Field(None, alias="year")
+    cast: list[str] | None = Field(None, alias="stars")
 
     @model_validator(mode="after")
     def parse_meta(self) -> "Meta":
@@ -233,6 +235,7 @@ class UserData(BaseModel):
     rpdb_config: RPDBConfig | None = Field(default=None, alias="rpc")
     live_search_streams: bool = Field(default=False, alias="lss")
     contribution_streams: bool = Field(default=False, alias="cs")
+    show_language_country_flag: bool = Field(default=False, alias="slcf")
 
     @field_validator("selected_resolutions", mode="after")
     def validate_selected_resolutions(cls, v):
@@ -313,6 +316,12 @@ class AuthorizeData(BaseModel):
 class MetaIdProjection(BaseModel):
     id: str = Field(alias="_id")
     type: str
+
+
+class MetaSearchProjection(BaseModel):
+    id: str = Field(alias="_id")
+    title: str
+    aka_titles: Optional[list[str]] = Field(default_factory=list)
 
 
 class TVMetaProjection(BaseModel):
@@ -415,3 +424,48 @@ class KodiConfig(BaseModel):
 class BlockTorrent(BaseModel):
     info_hash: str
     api_password: str
+
+
+class CacheStatusRequest(BaseModel):
+    """Request model for checking cache status"""
+
+    service: Literal[
+        "realdebrid",
+        "premiumize",
+        "alldebrid",
+        "debridlink",
+        "offcloud",
+        "seedr",
+        "pikpak",
+        "torbox",
+    ]
+    info_hashes: list[str]
+
+
+class CacheStatusResponse(BaseModel):
+    """Response model for cache status"""
+
+    cached_status: dict[str, bool]
+
+
+class CacheSubmitRequest(BaseModel):
+    """Request model for submitting cached info hashes"""
+
+    service: Literal[
+        "realdebrid",
+        "premiumize",
+        "alldebrid",
+        "debridlink",
+        "offcloud",
+        "seedr",
+        "pikpak",
+        "torbox",
+    ]
+    info_hashes: list[str]
+
+
+class CacheSubmitResponse(BaseModel):
+    """Response model for cache submission"""
+
+    success: bool
+    message: str

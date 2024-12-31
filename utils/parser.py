@@ -6,6 +6,7 @@ import math
 import re
 from datetime import datetime, timezone
 from typing import Optional, List, Any
+from urllib.parse import quote
 
 from thefuzz import fuzz
 
@@ -242,7 +243,7 @@ async def parse_stream_data(
             streaming_provider_name += " 🕵🏼‍♂️"
 
         base_proxy_url_template = (
-            f"{settings.host_url}/streaming_provider/{secret_str}/stream?info_hash={{}}"
+            f"{settings.host_url}/streaming_provider/{secret_str}/stream/{{}}"
         )
 
     stream_list = []
@@ -275,9 +276,10 @@ async def parse_stream_data(
             filter(
                 None,
                 [
+                    f"🎨 {'|'.join(stream_data.hdr)}" if stream_data.hdr else None,
                     f"📺 {stream_data.quality}" if stream_data.quality else None,
                     f"🎞️ {stream_data.codec}" if stream_data.codec else None,
-                    f"🎵 {stream_data.audio}" if stream_data.audio else None,
+                    f"🎵 {'|'.join(stream_data.audio)}" if stream_data.audio else None,
                 ],
             )
         )
@@ -294,10 +296,23 @@ async def parse_stream_data(
             file_size = stream_data.size
             size_info = convert_bytes_to_readable(file_size)
 
-        languages = (
-            f"🌐 {' + '.join(stream_data.languages)}" if stream_data.languages else None
-        )
+        if user_data.show_language_country_flag:
+            languages = filter(
+                None,
+                set(
+                    [
+                        const.LANGUAGE_COUNTRY_FLAGS.get(lang)
+                        for lang in stream_data.languages
+                    ]
+                ),
+            )
+        else:
+            languages = stream_data.languages
+
+        languages = f"🌐 {' + '.join(languages)}" if stream_data.languages else None
         source_info = f"🔗 {stream_data.source}"
+        if stream_data.uploader:
+            source_info += f" 🧑‍💻 {stream_data.uploader}"
 
         description = "\n".join(
             filter(
@@ -322,9 +337,11 @@ async def parse_stream_data(
         }
 
         if has_streaming_provider:
-            stream_details["url"] = base_proxy_url_template.format(stream_data.id) + (
-                f"&season={season}&episode={episode}" if episode_data else ""
-            )
+            stream_details["url"] = base_proxy_url_template.format(stream_data.id)
+            if episode_data:
+                stream_details["url"] += f"/{season}/{episode}"
+            if file_name:
+                stream_details["url"] += f"/{quote(file_name)}"
             stream_details["behaviorHints"]["notWebReady"] = True
         else:
             stream_details["infoHash"] = stream_data.id
@@ -534,6 +551,8 @@ async def generate_manifest(user_data: UserData, genres: dict) -> dict:
     streaming_provider_name = None
     streaming_provider_short_name = None
     enable_watchlist_catalogs = False
+    addon_name = settings.addon_name
+
     if user_data.streaming_provider:
         streaming_provider_name = user_data.streaming_provider.service
         streaming_provider_short_name = STREAMING_PROVIDERS_SHORT_NAMES.get(
@@ -542,9 +561,13 @@ async def generate_manifest(user_data: UserData, genres: dict) -> dict:
         enable_watchlist_catalogs = (
             user_data.streaming_provider.enable_watchlist_catalogs
         )
+        addon_name += f" {streaming_provider_short_name}"
+
+    if user_data.mediaflow_config:
+        addon_name += " 🕵🏼‍♂️"
 
     manifest_data = {
-        "addon_name": settings.addon_name,
+        "addon_name": addon_name,
         "version": settings.version,
         "contact_email": settings.contact_email,
         "description": settings.description,

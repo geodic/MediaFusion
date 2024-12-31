@@ -6,7 +6,6 @@ from io import BytesIO
 from typing import Literal, Annotated
 
 import aiohttp
-import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import (
     Depends,
@@ -26,6 +25,7 @@ from api import middleware
 from api.scheduler import setup_scheduler
 from db import crud, database, schemas
 from db.config import settings
+from db.redis_database import REDIS_ASYNC_CLIENT
 from db.schemas import SortingOption
 from kodi.routes import kodi_router
 from metrics.routes import metrics_router
@@ -48,7 +48,6 @@ from utils.runtime_const import (
     DELETE_ALL_META_ITEM,
     TEMPLATES,
 )
-from db.redis_database import REDIS_ASYNC_CLIENT
 from utils.validation_helper import (
     validate_mediaflow_proxy_credentials,
     validate_rpdb_token,
@@ -141,18 +140,7 @@ async def get_home(request: Request):
 @app.get("/health", tags=["health"])
 @wrappers.exclude_rate_limit
 async def health():
-    start_time = asyncio.get_event_loop().time()
-    async with httpx.AsyncClient(proxy=settings.requests_proxy_url) as client:
-        try:
-            response = await client.head("https://www.google.com", timeout=10)
-            return {
-                "status": "healthy",
-                "status_code": response.status_code,
-                "time": asyncio.get_event_loop().time() - start_time,
-            }
-        except Exception as e:
-            logging.error("Health check failed: %s", e)
-            raise HTTPException(status_code=503, detail="Health check failed.")
+    return {"status": "ok"}
 
 
 @app.get("/favicon.ico")
@@ -304,6 +292,20 @@ async def get_manifest(
     response_model_by_alias=False,
     tags=["catalog"],
 )
+@app.get(
+    "/{secret_str}/catalog/{catalog_type}/{catalog_id}/skip={skip}&genre={genre}.json",
+    response_model=schemas.Metas,
+    response_model_exclude_none=True,
+    response_model_by_alias=False,
+    tags=["catalog"],
+)
+@app.get(
+    "/{secret_str}/catalog/{catalog_type}/{catalog_id}/genre={genre}&skip={skip}.json",
+    response_model=schemas.Metas,
+    response_model_exclude_none=True,
+    response_model_by_alias=False,
+    tags=["catalog"],
+)
 @wrappers.auth_required
 @wrappers.rate_limit(150, 300, "catalog")
 async def get_catalog(
@@ -315,7 +317,6 @@ async def get_catalog(
     genre: str = None,
     user_data: schemas.UserData = Depends(get_user_data),
 ):
-    skip, genre = parse_genre_and_skip(genre, skip)
     cache_key, is_watchlist_catalog = get_cache_key(
         catalog_type, catalog_id, skip, genre, user_data
     )
@@ -343,14 +344,6 @@ async def get_catalog(
         )
 
     return await update_rpdb_posters(metas, user_data, catalog_type)
-
-
-def parse_genre_and_skip(genre: str, skip: int) -> tuple[int, str]:
-    if genre and "&" in genre:
-        genre, skip = genre.split("&")
-        skip = skip.split("=")[1] if "=" in skip else "0"
-        skip = int(skip) if skip and skip.isdigit() else 0
-    return skip, genre
 
 
 def get_cache_key(
@@ -790,6 +783,10 @@ async def get_poster(
             mediafusion_data.is_poster_working = False
             await mediafusion_data.save()
         return raise_poster_error(mediafusion_id, f"Poster generation failed: {e}")
+    except (ConnectionResetError, ValueError):
+        mediafusion_data.is_poster_working = False
+        await mediafusion_data.save()
+        return raise_poster_error(mediafusion_id, "Poster generation failed}")
     except (aiohttp.ClientConnectorError, aiohttp.ServerDisconnectedError) as e:
         return raise_poster_error(mediafusion_id, f"Poster generation failed: {e}")
     except Exception as e:
